@@ -69,3 +69,71 @@ It bridges the gap between powerful desktop POS systems and overly simplistic mo
 
 ---
 
+## 🏗️ System Design & Architecture
+
+### Object-Oriented Programming (OOP)
+GemTrack's backend has been strictly refactored to adhere to the 4 pillars of OOP:
+- **Abstraction**: `BaseRepository` and `BaseService` define absolute contracts containing required generic methods (like `findAll` and `execute`) that hide complex Prisma operations from the controllers.
+- **Encapsulation**: Service classes utilize private fields (e.g., `#prisma`, `#itemRepo`) and private internal computations (e.g., `#calculatePaymentStatus`) to protect states from unauthorized external interference. 
+- **Inheritance**: `ItemRepository` and `CustomerRepository` heavily inherit from `BaseRepository`, immediately securing complex data operations identically across all subclass domain entities without code duplication.
+- **Polymorphism**: `ItemRepository.delete()` distinctly overrides the standard parent deletion protocol to inject targeted business logic (blocking deletion if the item `isSold`).
+
+### Design Patterns Applied
+1. **Repository Pattern**: Heavily utilized to abstract and decouple the Express.js networking controllers entirely away from the underlying database data-access layer.
+2. **Singleton Pattern**: The `PrismaClient` instantiation is securely pooled strictly through a singleton export (`prismaClient.js`). This definitively prevents connection pool exhaustion crashes historically observed in concurrent deployments.
+3. **Dependency Injection (DI)**: The `SaleService` module explicitly maps and accepts injected `ItemRepository` and `CustomerRepository` inputs through its constructor, fully isolating cross-domain knowledge logic for robust scalable boundaries.
+
+### Software Development Life Cycle (SDLC)
+GemTrack leverages an **Iterative & Incremental SDLC**, initially starting as a procedural Minimal Viable Product (MVP) to establish the necessary business data rules, before incrementally pivoting into a highly-scalable OOP architecture engineered for complex production routing dynamically testing all constraints iteratively.
+
+### Entity-Relationship (ER) Diagram
+```mermaid
+erDiagram
+    USER ||--o{ CUSTOMER : manages
+    USER ||--o{ ITEM : manages
+    USER ||--o{ SALE : processes
+    CUSTOMER ||--o{ SALE : "makes purchases"
+    SALE ||--o{ SALE_ITEM : contains
+    SALE ||--o{ PAYMENT : has
+    ITEM ||--o{ SALE_ITEM : "is sold as"
+
+    USER {
+        int id PK
+        string email
+        string password
+    }
+    CUSTOMER {
+        int id PK
+        string name
+        string phone
+        string email
+        int userId FK
+    }
+    ITEM {
+        int id PK
+        string name
+        string sku
+        boolean isSold
+        int userId FK
+    }
+    SALE {
+        int id PK
+        string billNumber
+        float totalSaleAmount
+        string paymentStatus
+        int customerId FK
+        int userId FK
+    }
+    SALE_ITEM {
+        int id PK
+        float soldPrice
+        int saleId FK
+        int itemId FK
+    }
+    PAYMENT {
+        int id PK
+        float amountPaid
+        string paymentMethod
+        int saleId FK
+    }
+```
