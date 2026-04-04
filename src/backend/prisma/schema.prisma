@@ -1,0 +1,151 @@
+// backend/prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+  binaryTargets = ["native", "rhel-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 1. User Model (No change)
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  customers   Customer[]
+  items       Item[]
+  sales       Sale[]
+  shopProfile ShopProfile?
+
+  @@map("users")
+}
+
+// 2. Customer Model (No change from Phase 2)
+model Customer {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?  @unique
+  email     String?  @unique
+  address   String?
+  city      String?
+  pincode   String?
+  pancard   String?
+  createdAt DateTime @default(now()) @map("created_at")
+  sales     Sale[]
+
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+
+  @@map("customers")
+}
+
+// 3. Item Model (No change from Phase 2)
+model Item {
+  id                 Int       @id @default(autoincrement())
+  name               String
+  sku                String    @unique
+  huid               String?
+  purity             String?
+  category           String?
+  metal              String?   // Added for analytics
+  grossWeight        Float?
+  netWeight          Float?
+  makingPerGm        Float?
+  wastagePct         Float?
+  hallmarkingCharges Int?
+  stoneCharges       Int?
+  otherCharges       Int?
+  cgstPct            Float?
+  sgstPct            Float?
+  cost               Float?
+  price              Float?
+  isSold             Boolean   @default(false)
+  barcodePrinted     Boolean   @default(false)
+  createdAt          DateTime  @default(now()) @map("created_at")
+  saleItems          SaleItem[]
+
+  userId             Int?
+  user               User?     @relation(fields: [userId], references: [id])
+
+  @@map("items")
+}
+
+// 4. Sale Model (UPGRADED FOR CREDIT)
+model Sale {
+  id              Int       @id @default(autoincrement())
+  billNumber      String?   @unique // Unique bill number for the sale
+  totalSaleAmount Float     // The full price of the sale
+  discount        Float     @default(0) // Discount amount
+  amountPaid      Float     @default(0) // The total amount paid so far
+  amountDue       Float     // totalSaleAmount - discount - amountPaid
+  paymentStatus   String    // "PAID", "PARTIAL", "UNPAID"
+  dueDate         DateTime? // Optional: due date for the credit
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  customerId Int?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  saleItems SaleItem[]
+  payments  Payment[]
+
+  userId    Int?
+  user      User?     @relation(fields: [userId], references: [id])
+
+  @@map("sales")
+}
+
+// 5. SaleItem Model (UPGRADED FOR DELETES)
+model SaleItem {
+  id               Int     @id @default(autoincrement())
+  soldPrice        Float
+  soldMakingCharge Float?
+  soldWastage      Float?
+  soldHallmarking  Int?
+  soldStoneCharges Int?
+  soldOtherCharges Int?
+  soldCgstPct      Float?
+  soldSgstPct      Float?
+
+  saleId Int
+  sale   Sale @relation(fields: [saleId], references: [id], onDelete: Cascade) // Cascade delete
+
+  itemId Int
+  item   Item @relation(fields: [itemId], references: [id])
+
+  @@map("sale_items")
+}
+
+// 6. Payment Model (NEW)
+// This tracks each individual payment (installment, down payment) for a Sale
+model Payment {
+  id            Int      @id @default(autoincrement())
+  amountPaid    Float
+  paymentMethod String   // "Cash", "Card", "UPI"
+  paymentDate   DateTime @default(now())
+
+  saleId Int
+  sale   Sale @relation(fields: [saleId], references: [id], onDelete: Cascade) // Cascade delete
+
+  @@map("payments")
+}
+
+// 7. Shop Profile Model (NEW)
+model ShopProfile {
+  id          Int      @id @default(autoincrement())
+  shopName    String   @default("My Jewelry Shop")
+  address     String?
+  phone       String?
+  gstin       String?
+  updatedAt   DateTime @updatedAt
+  
+  userId      Int?     @unique
+  user        User?    @relation(fields: [userId], references: [id])
+
+  @@map("shop_profile")
+}
