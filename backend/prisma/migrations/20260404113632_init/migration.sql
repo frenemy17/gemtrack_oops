@@ -20,6 +20,7 @@ CREATE TABLE "public"."customers" (
     "pincode" TEXT,
     "pancard" TEXT,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "userId" INTEGER,
 
     CONSTRAINT "customers_pkey" PRIMARY KEY ("id")
 );
@@ -47,6 +48,7 @@ CREATE TABLE "public"."items" (
     "isSold" BOOLEAN NOT NULL DEFAULT false,
     "barcodePrinted" BOOLEAN NOT NULL DEFAULT false,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "userId" INTEGER,
 
     CONSTRAINT "items_pkey" PRIMARY KEY ("id")
 );
@@ -63,6 +65,7 @@ CREATE TABLE "public"."sales" (
     "dueDate" TIMESTAMP(3),
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "customerId" INTEGER,
+    "userId" INTEGER,
 
     CONSTRAINT "sales_pkey" PRIMARY KEY ("id")
 );
@@ -95,6 +98,19 @@ CREATE TABLE "public"."payments" (
     CONSTRAINT "payments_pkey" PRIMARY KEY ("id")
 );
 
+-- CreateTable
+CREATE TABLE "public"."shop_profile" (
+    "id" SERIAL NOT NULL,
+    "shopName" TEXT NOT NULL DEFAULT 'My Jewelry Shop',
+    "address" TEXT,
+    "phone" TEXT,
+    "gstin" TEXT,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+    "userId" INTEGER,
+
+    CONSTRAINT "shop_profile_pkey" PRIMARY KEY ("id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "public"."users"("email");
 
@@ -110,8 +126,20 @@ CREATE UNIQUE INDEX "items_sku_key" ON "public"."items"("sku");
 -- CreateIndex
 CREATE UNIQUE INDEX "sales_billNumber_key" ON "public"."sales"("billNumber");
 
+-- CreateIndex
+CREATE UNIQUE INDEX "shop_profile_userId_key" ON "public"."shop_profile"("userId");
+
+-- AddForeignKey
+ALTER TABLE "public"."customers" ADD CONSTRAINT "customers_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."items" ADD CONSTRAINT "items_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
 -- AddForeignKey
 ALTER TABLE "public"."sales" ADD CONSTRAINT "sales_customerId_fkey" FOREIGN KEY ("customerId") REFERENCES "public"."customers"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."sales" ADD CONSTRAINT "sales_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "public"."sale_items" ADD CONSTRAINT "sale_items_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "public"."sales"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -121,3 +149,6 @@ ALTER TABLE "public"."sale_items" ADD CONSTRAINT "sale_items_itemId_fkey" FOREIG
 
 -- AddForeignKey
 ALTER TABLE "public"."payments" ADD CONSTRAINT "payments_saleId_fkey" FOREIGN KEY ("saleId") REFERENCES "public"."sales"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "public"."shop_profile" ADD CONSTRAINT "shop_profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "public"."users"("id") ON DELETE SET NULL ON UPDATE CASCADE;
