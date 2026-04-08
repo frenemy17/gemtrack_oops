@@ -2,6 +2,7 @@ const BaseService = require('./BaseService');
 const ItemRepository = require('../repositories/ItemRepository');
 const CustomerRepository = require('../repositories/CustomerRepository');
 const prismaSingleton = require('../prismaClient');
+const { DiscountFactory } = require('../strategies/DiscountStrategy');
 
 /**
  * @class SaleService
@@ -50,13 +51,16 @@ class SaleService extends BaseService {
   }
 
   // Public API
-  async processSale({ customerId, items, amountPaid, discount, dueDate, paymentMethod, userId }) {
+  async processSale({ customerId, items, amountPaid, discount, discountType, dueDate, paymentMethod, userId }) {
     try {
       await this.validate({ customerId, items });
 
       // Calculate totals
       const totalSaleAmount = items.reduce((sum, item) => sum + (Number(item.soldPrice) || 0), 0);
-      const finalDiscount = Number(discount) || 0;
+      
+      // Implement Strategy Pattern to calculate final discount dynamically
+      const discountStrategy = DiscountFactory.getStrategy(discountType, discount);
+      const finalDiscount = discountStrategy.calculate(totalSaleAmount);
       const finalPaid = Number(amountPaid) || 0;
       const amountDue = totalSaleAmount - finalDiscount - finalPaid;
 
