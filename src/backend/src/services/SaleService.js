@@ -4,6 +4,7 @@ const CustomerRepository = require('../repositories/CustomerRepository');
 const prismaSingleton = require('../prismaClient');
 const { DiscountFactory } = require('../strategies/DiscountStrategy');
 const saleNotifier = require('../observers/SaleObserver');
+const { buildCompositeTree } = require('../patterns/CompositeItem');
 
 /**
  * @class SaleService
@@ -54,10 +55,14 @@ class SaleService extends BaseService {
   // Public API
   async processSale({ customerId, items, amountPaid, discount, discountType, dueDate, paymentMethod, userId }) {
     try {
-      await this.validate({ customerId, items });
+      // 0. Delegate unpacking bundles through our Composite Pattern
+      const compositeRoot = buildCompositeTree(items);
+      const flatItems = compositeRoot.extractItems();
 
-      // Calculate totals
-      const totalSaleAmount = items.reduce((sum, item) => sum + (Number(item.soldPrice) || 0), 0);
+      await this.validate({ customerId, items: flatItems });
+
+      // Calculate totals elegantly via Composite aggregation loop
+      const totalSaleAmount = compositeRoot.calculateTotal();
       
       // Implement Strategy Pattern to calculate final discount dynamically
       const discountStrategy = DiscountFactory.getStrategy(discountType, discount);
@@ -67,7 +72,7 @@ class SaleService extends BaseService {
 
       const paymentStatus = this.#calculatePaymentStatus(totalSaleAmount, finalDiscount, finalPaid);
       const billNumber = this.#generateBillNumber();
-      const saleItemsPayload = this.#buildSaleItemsPayload(items);
+      const saleItemsPayload = this.#buildSaleItemsPayload(flatItems);
 
       // Perform everything within Prisma's native $transaction to assure database atomicity without violating repo boundaries
       const completeSale = await this.#prisma.$transaction(async (tx) => {
@@ -102,7 +107,7 @@ class SaleService extends BaseService {
         });
 
         // 2. Mark the relevant items as sold. As requested, we make use of ItemRepo specifically marking as sold.
-        for (const item of items) {
+        for (const item of flatItems) {
            await this.#itemRepo.markAsSold(item.itemId);
         }
 
