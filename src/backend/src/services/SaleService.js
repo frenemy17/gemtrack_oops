@@ -3,6 +3,7 @@ const ItemRepository = require('../repositories/ItemRepository');
 const CustomerRepository = require('../repositories/CustomerRepository');
 const prismaSingleton = require('../prismaClient');
 const { DiscountFactory } = require('../strategies/DiscountStrategy');
+const saleNotifier = require('../observers/SaleObserver');
 
 /**
  * @class SaleService
@@ -107,6 +108,9 @@ class SaleService extends BaseService {
 
         return sale;
       });
+
+      // Observer Pattern: Notify all listeners that a sale happened!
+      saleNotifier.emit('saleCompleted', completeSale);
 
       return completeSale;
     } catch (error) {
