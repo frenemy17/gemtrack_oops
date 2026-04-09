@@ -1,13 +1,9 @@
 const ItemRepository = require('../repositories/ItemRepository');
 const itemRepo = new ItemRepository();
-const prisma = itemRepo._getPrisma(); // Using it locally to maintain raw queries the repo doesn't cover natively
 
 exports.getUnprintedItems = async (req, res) => {
   try {
-    const items = await itemRepo._getPrisma().item.findMany({
-      where: { barcodePrinted: false, isSold: false, userId: req.user.id },
-      select: { id: true, name: true, sku: true },
-    });
+    const items = await itemRepo.getUnprintedItems(req.user.id);
     res.json(items);
   } catch (error) {
     res.status(500).json({ message: 'Failed to fetch items.' });
@@ -17,10 +13,7 @@ exports.getUnprintedItems = async (req, res) => {
 exports.markAsPrinted = async (req, res) => {
   try {
     const { itemIds } = req.body;
-    await itemRepo._getPrisma().item.updateMany({
-      where: { id: { in: itemIds }, userId: req.user.id },
-      data: { barcodePrinted: true },
-    });
+    await itemRepo.markMultipleAsPrinted(itemIds, req.user.id);
     res.json({ message: 'Items marked as printed' });
   } catch (error) {
     res.status(500).json({ message: 'Failed to update items.' });

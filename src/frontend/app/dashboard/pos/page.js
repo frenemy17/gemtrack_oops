@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
-import { Search, Trash2, ShoppingCart, CreditCard, Banknote, QrCode } from 'lucide-react';
+import { Search, Trash2, ShoppingCart, CreditCard, Banknote, QrCode, Package } from 'lucide-react';
 import CustomerSelect from './components/CustomerSelect';
 import EditItemDialog from './components/EditItemDialog';
 import { Badge } from '@/components/ui/badge';
@@ -30,6 +30,7 @@ export default function POSPage() {
     const [loading, setLoading] = useState(false);
 
     const [discount, setDiscount] = useState('');
+    const [discountType, setDiscountType] = useState('FLAT');
 
     useEffect(() => {
         fetchGoldRate();
@@ -92,7 +93,8 @@ export default function POSPage() {
     const calculateTotals = () => {
         const subtotal = cart.reduce((sum, item) => sum + (parseFloat(item.soldPrice) || 0), 0);
         const discountVal = parseFloat(discount) || 0;
-        const taxableAmount = Math.max(0, subtotal - discountVal);
+        const discountAmt = discountType === 'PERCENTAGE' ? (subtotal * (discountVal / 100)) : discountVal;
+        const taxableAmount = Math.max(0, subtotal - discountAmt);
 
         const cgst = (taxableAmount * 0.015).toFixed(2);
         const sgst = (taxableAmount * 0.015).toFixed(2);
@@ -119,19 +121,39 @@ export default function POSPage() {
             const payload = {
                 customerId: customer.id,
                 paymentMethod,
-                items: cart.map(i => ({
-                    itemId: i.id,
-                    soldPrice: parseFloat(i.soldPrice),
-                    soldMakingCharge: i.soldMakingCharge,
-                    soldWastage: i.soldWastage,
-                    soldHallmarking: i.soldHallmarking,
-                    soldStoneCharges: i.soldStoneCharges,
-                    soldOtherCharges: i.soldOtherCharges,
-                    soldCgstPct: 1.5, // Defaulting as per calculation
-                    soldSgstPct: 1.5
-                })),
+                items: cart.map(i => {
+                    if (i.isCombo) {
+                        return {
+                            isCombo: true,
+                            name: i.name,
+                            children: i.children.map(c => ({
+                                itemId: c.id,
+                                soldPrice: parseFloat(c.soldPrice),
+                                soldMakingCharge: c.soldMakingCharge,
+                                soldWastage: c.soldWastage,
+                                soldHallmarking: c.soldHallmarking,
+                                soldStoneCharges: c.soldStoneCharges,
+                                soldOtherCharges: c.soldOtherCharges,
+                                soldCgstPct: 1.5,
+                                soldSgstPct: 1.5
+                            }))
+                        };
+                    }
+                    return {
+                        itemId: i.id,
+                        soldPrice: parseFloat(i.soldPrice),
+                        soldMakingCharge: i.soldMakingCharge,
+                        soldWastage: i.soldWastage,
+                        soldHallmarking: i.soldHallmarking,
+                        soldStoneCharges: i.soldStoneCharges,
+                        soldOtherCharges: i.soldOtherCharges,
+                        soldCgstPct: 1.5,
+                        soldSgstPct: 1.5
+                    };
+                }),
                 amountPaid: paid,
-                discount: discountVal
+                discount: discountVal,
+                discountType: discountType
             };
 
             const res = await sales.checkout(payload);
@@ -164,6 +186,27 @@ export default function POSPage() {
     };
 
     const totals = calculateTotals();
+
+    const handleCreateCombo = () => {
+        if (cart.length < 2) {
+            toast.error("Not enough items", { description: "Select at least 2 items to group into a Combo." });
+            return;
+        }
+        const name = prompt("Name this Combo Set (e.g. Bridal Set, Festival Combo):", "Custom Combo Setup");
+        if (!name) return;
+
+        const comboItem = {
+            isCombo: true,
+            id: 'COMBO-' + Date.now(),
+            sku: 'C' + Date.now().toString().slice(-6),
+            name: name,
+            children: cart,
+            soldPrice: cart.reduce((sum, item) => sum + (parseFloat(item.soldPrice) || 0), 0)
+        };
+        
+        setCart([comboItem]);
+        toast.success("Combo created!", { description: "Items successfully merged structurally using Composite Pattern." });
+    };
 
     return (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 h-[calc(100vh-100px)]">
@@ -220,7 +263,10 @@ export default function POSPage() {
                     <CardHeader>
                         <CardTitle className="flex items-center justify-between">
                             <span>Current Sale</span>
-                            <Badge variant="secondary">{cart.length} Items</Badge>
+                            <div className="flex items-center space-x-2">
+                                {cart.length > 1 && <Button size="sm" variant="outline" className="h-6 text-xs text-purple-700 bg-purple-50" onClick={handleCreateCombo}>Wrap Combo</Button>}
+                                <Badge variant="secondary">{cart.length} Items</Badge>
+                            </div>
                         </CardTitle>
                         <CustomerSelect onSelect={setCustomer} selectedCustomer={customer} />
                     </CardHeader>
@@ -237,8 +283,17 @@ export default function POSPage() {
                                 {cart.map((item, index) => (
                                     <TableRow key={index}>
                                         <TableCell>
-                                            <div className="font-medium">{item.name}</div>
+                                            <div className="font-medium flex items-center space-x-2">
+                                                {item.isCombo && <Package className="h-4 w-4 text-purple-600" />}
+                                                <span>{item.name}</span>
+                                                {item.isCombo && <Badge className="text-[10px] ml-2">Combo</Badge>}
+                                            </div>
                                             <div className="text-xs text-muted-foreground">{item.sku}</div>
+                                            {item.isCombo && (
+                                                <div className="text-[10px] text-muted-foreground mt-1 ml-4 border-l-2 border-primary/20 pl-2">
+                                                    {item.children.map(c => c.name).join(' + ')}
+                                                </div>
+                                            )}
                                         </TableCell>
                                         <TableCell className="text-right">₹{item.soldPrice?.toLocaleString()}</TableCell>
                                         <TableCell>
@@ -258,7 +313,13 @@ export default function POSPage() {
                                 <span>₹{totals.subtotal.toLocaleString()}</span>
                             </div>
                             <div className="flex items-center justify-between space-x-2">
-                                <span className="text-sm">Discount</span>
+                                <div className="flex items-center space-x-2">
+                                    <span className="text-sm">Discount</span>
+                                    <select className="h-8 text-xs border rounded px-1 w-20" value={discountType} onChange={e => setDiscountType(e.target.value)}>
+                                        <option value="FLAT">₹ Flat</option>
+                                        <option value="PERCENTAGE">% Pct</option>
+                                    </select>
+                                </div>
                                 <Input
                                     type="number"
                                     placeholder="0"

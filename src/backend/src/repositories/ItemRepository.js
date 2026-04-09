@@ -103,6 +103,30 @@ class ItemRepository extends BaseRepository {
     }
   }
 
+  // Encapsulating raw ORM query to prevent leaky abstractions in the controller
+  async getUnprintedItems(userId) {
+    try {
+      return await this._getPrisma().item.findMany({
+        where: { barcodePrinted: false, isSold: false, userId },
+        select: { id: true, name: true, sku: true },
+      });
+    } catch (error) {
+      throw new Error(`Failed to fetch unprinted items: ${error.message}`);
+    }
+  }
+
+  // Encapsulating update logic so the controller doesn't directly access Prisma
+  async markMultipleAsPrinted(itemIds, userId) {
+    try {
+      return await this._getPrisma().item.updateMany({
+        where: { id: { in: itemIds }, userId },
+        data: { barcodePrinted: true },
+      });
+    } catch (error) {
+      throw new Error(`Failed to mark items as printed: ${error.message}`);
+    }
+  }
+
   // Private — Encapsulation
   #buildSearchFilter(search) {
     return [
